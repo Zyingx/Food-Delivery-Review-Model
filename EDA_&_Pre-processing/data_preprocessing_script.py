@@ -1,11 +1,44 @@
 import csv
+import sys
 import time
+import os
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 from tqdm import tqdm
 from helpers import *
+from datetime import datetime
+
+# Logs will be saved in 'logs' directory
+log_dir = "logs"
+os.makedirs(log_dir, exist_ok=True)
+
+# Logging into text file
+class Logs:
+    def __init__(self, *files):
+        self.files = files
+
+    def write(self, message):
+        for f in self.files:
+            f.write(message)
+            f.flush()
+
+    def flush(self):
+        for f in self.files:
+            f.flush()
+
+log_filename = os.path.join(
+    log_dir,
+    f"data_preprocessing_logs_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+)
+
+log_file = open(log_filename, "w", encoding="utf-8")
+
+sys.stdout = Logs(sys.stdout, log_file)
+sys.stderr = Logs(sys.stderr, log_file)
+
+print(f"Logging started: {log_filename}")
 
 # Initialize tqdm for pandas
 tqdm.pandas()
@@ -146,3 +179,5 @@ print("\nBalanced preprocessed data saved to 'preprocessed_data.csv'")
 print("\n" + "="*50)
 print("END OF DATA PREPROCESSING")
 print("="*50)
+
+log_file.close()

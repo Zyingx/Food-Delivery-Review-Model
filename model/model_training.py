@@ -1,12 +1,48 @@
 import joblib
+import matplotlib.pyplot as plt
+import os
 import pandas as pd
+import sys
 import warnings
+from datetime import datetime
 from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics import accuracy_score, classification_report
+from sklearn.metrics import accuracy_score, classification_report, roc_curve, roc_auc_score,  auc
+from sklearn.preprocessing import label_binarize
 from sklearn.linear_model import LogisticRegression
 from sklearn.svm import LinearSVC
 from sklearn.naive_bayes import MultinomialNB
+
+
+# Logs will be saved in 'logs' directory
+log_dir = "logs"
+os.makedirs(log_dir, exist_ok=True)
+
+# Logging into text file
+class Tee:
+    def __init__(self, *files):
+        self.files = files
+
+    def write(self, message):
+        for f in self.files:
+            f.write(message)
+            f.flush()
+
+    def flush(self):
+        for f in self.files:
+            f.flush()
+
+log_filename = os.path.join(
+    log_dir,
+    f"model_training_logs_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+)
+
+log_file = open(log_filename, "w", encoding="utf-8")
+
+sys.stdout = Tee(sys.stdout, log_file)
+sys.stderr = Tee(sys.stderr, log_file)
+
+print(f"Logging started: {log_filename}")
 
 # Import Dataset
 df = pd.read_csv('../EDA_&_Pre-processing/preprocessed_data.csv')
@@ -124,6 +160,39 @@ print("Summary of Baseline vs Tuned Models:\n")
 for name in models.keys():
     print(f"{name}:\nBaseline={results[name]:.4f}\nTuned={tuned_results[name]:.4f}\n")
 
+# Binarize the labels (works for multiclass)
+classes = sorted(y_sentiment.unique())
+y_test_bin = label_binarize(y_test, classes=classes)
+n_classes = y_test_bin.shape[1]
+
+plt.figure(figsize=(10, 8))
+
+for name, model in selected_model.items():
+    if hasattr(model, "predict_proba"):
+        y_score = model.predict_proba(X_test_vec)
+    else:  # For LinearSVC
+        y_score = model.decision_function(X_test_vec)
+    
+    # Compute micro-average ROC curve and AUC
+    fpr, tpr, _ = roc_curve(y_test_bin.ravel(), y_score.ravel())
+    roc_auc = auc(fpr, tpr)
+    
+    # Plot the curve
+    plt.plot(fpr, tpr, lw=2, label=f'{name} (AUC = {roc_auc:.3f})')
+
+# Diagonal line for random classifier
+plt.plot([0, 1], [0, 1], 'r--', lw=2)
+
+plt.xlim([0.0, 1.0])
+plt.ylim([0.0, 1.05])
+plt.xlabel('False Positive Rate')
+plt.ylabel('True Positive Rate')
+plt.title('ROC Curve Comparison')
+plt.legend(loc="lower right")
+plt.grid(True)
+plt.show()
+
+# Select the best tuned model based on accuracy
 best_tuned = max(tuned_results, key=tuned_results.get)
 print("\n" + "="*60)
 print("Selected Model:\n")
